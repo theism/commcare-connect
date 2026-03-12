@@ -42,7 +42,7 @@ from commcare_connect.opportunity.models import (
 )
 from commcare_connect.organization.models import Organization
 from commcare_connect.program.models import Program
-from commcare_connect.users.models import User
+from commcare_connect.users.models import ConnectIDUserLink, User
 
 
 class BaseDataExportView(APIView):
@@ -165,7 +165,27 @@ class ProgramOpportunityOrganizationDataView(BaseDataExportView):
         org_data = OrganizationDataExportSerializer(organizations, many=True).data
         opp_data = OpportunityDataExportSerializer(opportunities, many=True).data
         program_data = ProgramDataExportSerializer(programs, many=True).data
-        return JsonResponse({"organizations": org_data, "opportunities": opp_data, "programs": program_data})
+
+        # Include user identity so callers can resolve email/HQ username.
+        # For Dimagi staff the CommCareHQ username IS their @dimagi.com address.
+        commcare_username = ""
+        link = ConnectIDUserLink.objects.filter(user=request.user).first()
+        if link:
+            commcare_username = link.commcare_username or ""
+
+        user_data = {
+            "email": request.user.email or "",
+            "commcare_username": commcare_username,
+        }
+
+        return JsonResponse(
+            {
+                "organizations": org_data,
+                "opportunities": opp_data,
+                "programs": program_data,
+                "user": user_data,
+            }
+        )
 
 
 class SingleOpportunityDataView(RetrieveAPIView, BaseDataExportView):
